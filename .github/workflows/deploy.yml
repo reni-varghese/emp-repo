@@ -1,1 +1,72 @@
-#
+name: Build and Deploy to Elastic Beanstalk
+
+on:
+  workflow_dispatch:   # manual trigger for now — we'll test this first before enabling auto-trigger
+
+env:
+  AWS_REGION: ap-south-1
+  EB_APPLICATION_NAME: EmployeeAppApi-01
+  EB_ENVIRONMENT_NAME: EmployeeAppApi-01-dev
+  S3_BUCKET: employeeapp-deploy-reni-2026-574521703934-ap-south-1-an
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build Angular app
+        working-directory: ./EmployeeApp.NgClient
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish Blazor client
+        run: dotnet publish EmployeeClient/EmployeeClient.csproj -c Release -o ./blazor-publish-temp
+
+      - name: Copy Blazor output into API wwwroot
+        run: |
+          mkdir -p ./EmployeeApp.Api/wwwroot/blazor
+          cp -r ./blazor-publish-temp/wwwroot/* ./EmployeeApp.Api/wwwroot/blazor/
+
+      - name: Publish API (includes Angular + Blazor already in wwwroot)
+        run: dotnet publish EmployeeApp.Api/EmployeeApp.Api.csproj -c Release -o ./publish
+
+      - name: Zip the published output
+        working-directory: ./publish
+        run: zip -r ../deploy-package.zip .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload package to S3
+        run: aws s3 cp deploy-package.zip s3://${{ env.S3_BUCKET }}/deploy-package-${{ github.run_number }}.zip
+
+      - name: Create new EB application version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name "${{ env.EB_APPLICATION_NAME }}" \
+            --version-label "gha-${{ github.run_number }}" \
+            --source-bundle S3Bucket="${{ env.S3_BUCKET }}",S3Key="deploy-package-${{ github.run_number }}.zip"
+
+      - name: Deploy new version to environment
+        run: |
+          aws elasticbeanstalk update-environment \
+            --environment-name "${{ env.EB_ENVIRONMENT_NAME }}" \
+            --version-label "gha-${{ github.run_number }}"
