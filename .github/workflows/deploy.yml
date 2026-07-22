@@ -1,7 +1,10 @@
 name: Build and Deploy to Elastic Beanstalk
 
 on:
-  workflow_dispatch:   # manual trigger for now — we'll test this first before enabling auto-trigger
+  workflow_dispatch:
+  push:
+    branches:
+      - master
 
 env:
   AWS_REGION: ap-south-1
