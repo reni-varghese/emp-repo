@@ -44,10 +44,12 @@ pipeline {
         }
 
         stage('Zip published output') {
-            steps {
-                powershell 'Compress-Archive -Path publish\\* -DestinationPath deploy-package.zip -Force'
-            }
+    steps {
+        dir('publish') {
+            bat 'jar -cMf ../deploy-package.zip .'
         }
+    }
+}
 
         stage('Upload to S3 and Deploy to EB') {
             steps {
