@@ -1,0 +1,3 @@
+C:\aws\EmployeeApp\EmployeeClient\artifacts\EmployeeClient.runtimeconfig.json
+C:\aws\EmployeeApp\EmployeeClient\artifacts\dotnet.js
+C:\aws\EmployeeApp\EmployeeClient\artifacts\web.config
